@@ -33,5 +33,14 @@ app.get('/', function(req, res){
   res.render('index');
 });
 
+/*app.get('/images/BLUE_GRASS_FG_1.png', function(req, res){
+	path = '/images/BLUE_GRASS_FG_1.png';
+	fs.readFile(path, function(err, data){
+					res.writeHead(200);  
+					res.write(data);  
+					res.end();
+	});
+});*/
+
 app.listen(3000);
 console.log("Express server listening on port %d", app.address().port);
