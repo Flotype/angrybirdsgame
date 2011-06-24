@@ -4,15 +4,16 @@ $(document).ready(function() {
 	var canvas = document.getElementById('bg0');
 	var bgContext = canvas.getContext('2d');
 
+
 //initial values for viewport	
 	var viewport = {
 		height: 600,
 		width: 800,
-		zoom: 0.5,
+		zoom: 1.0,
 		x0: 0, 
-		x1: 800,
-		y0: 0,
-		y1: 600,
+		//x1: 800,
+		//y0: 0,
+		//y1: 600,
 		//ground level
 		groundY: 200,
 		//zoomed out
@@ -21,14 +22,14 @@ $(document).ready(function() {
 
 //default zoomed in left-hand position
 	var defaultLeft = {
-		zoom: 1.0,
+		zoom: 2.0,
 		x0: 0,
 		viewCode: 1,
 	};
 
 //default zoomed in right-hand position
 	var defaultRight = {
-		zoom: 1.0,
+		zoom: 2.0,
 		x0: 400,
 		viewCode: 2,
 	}
@@ -51,26 +52,37 @@ $(document).ready(function() {
 
 	//At full size, offset from the slingshot to the rubber band attachment points
 	const ssOffset = {
-		front: { x: 15, y: 15 },
-		back: { x: 15, y: 25}
+		front: { x: 0, y: 0 },
+		back: { x: 0, y: 0}
 	};
 	//height of the slingshot;
 	const ssHeight = 199;
 	//max size of rubber band
-	const bandSize = 450;
+	const bandSize = 350;
+	
 
 //load all the images and store them, then call redraw()
 	function init() {
-		var bg1TileSrcs = {'BLUE_GRASS_FG_1.png': {height: 187, width: 332, defaultY: viewport.height - viewport.groundY, index: 1},
-									 'BLUE_GRASS_FG_2.png': {height: 33, width: 332, defaultY: viewport.height - viewport.groundY - 33, index: 2}, 
+		var bg1TileSrcs = {'BLUE_GRASS_FG_1.png': {height: 187, width: 332, defaultY: viewport.height - viewport.groundY, index: 1, vpHeight: 93.5, vpWidth: 166},
+									 'BLUE_GRASS_FG_2.png': {height: 33, width: 332, defaultY: viewport.height - viewport.groundY - 16.5, index: 2, vpHeight: 16.5, vpWidth: 166}, 
 		};
-		var bg1ImgSrcs = {'SLINGSHOT_01_BACK.png': {height: 199, width: 38, defaultY: viewport.height - viewport.groundY - 124, defaultX: 250, index: 1},
-									 		'SLINGSHOT_01_FRONT.png': {height: 124, width: 43, defaultY: viewport.height - viewport.groundY - 124, defaultX: 220, index: 2},
+		var bg1ImgSrcs = {'SLINGSHOT_01_BACK.png': {height: 199, width: 38, defaultY: viewport.height - viewport.groundY - 99.5, defaultX: 135, index: 1, vpHeight: 99.5, vpWidth: 19},
+									 		'SLINGSHOT_01_FRONT.png': {height: 124, width: 43, defaultY: viewport.height - viewport.groundY - 104, defaultX: 120, index: 2, vpHeight: 62, vpWidth: 21.5},
+		};
+		var fgImgSrcs = {
+									 'INGAME_BIRDS_PIGS.png': {height: 920, width: 859},
+									 'SLINGSHOT_RUBBERBAND.png': {height: 16, width: 14, vpWidth: 7},
+		};
+		/*var bg1TileSrcs = {'BLUE_GRASS_FG_1.png': {height: 187 / 2, width: 332 / 2, defaultY: viewport.height - viewport.groundY, index: 1},
+									 'BLUE_GRASS_FG_2.png': {height: 33 / 2, width: 332 / 2, defaultY: viewport.height - viewport.groundY - 33, index: 2}, 
+		};
+		var bg1ImgSrcs = {'SLINGSHOT_01_BACK.png': {height: 199 / 2, width: 38 / 2, defaultY: viewport.height - viewport.groundY - 199, defaultX: 180, index: 1},
+									 		'SLINGSHOT_01_FRONT.png': {height: 124 / 2, width: 43 / 2, defaultY: viewport.height - viewport.groundY - 204, defaultX: 150, index: 2},
 		};
 		var fgImgSrcs = {
 									 'INGAME_BIRDS_PIGS.png': {height: 920, width: 859},
 									 'SLINGSHOT_RUBBERBAND.png': {height: 16, width: 14},
-		};
+		};*/
 		var loaded = 0;
 		var tileKeys = Object.keys(bg1TileSrcs);
 		var bgKeys = Object.keys(bg1ImgSrcs);
@@ -90,6 +102,8 @@ $(document).ready(function() {
 			img.width = data.width;
 			img.defaultY= data.defaultY;
 			img.index = data.index;
+			img.vpWidth = data.vpWidth;
+			img.vpHeight = data.vpHeight;
 
 			bgTiles[key] = img;
 			//when all images are loaded, draw.
@@ -112,6 +126,8 @@ $(document).ready(function() {
 			img.defaultY = data.defaultY;
 			img.defaultX = data.defaultX;
 			img.index = data.index;
+			img.vpWidth = data.vpWidth;
+			img.vpHeight = data.vpHeight;
 
 			bgImages[key] = img;
 			//when all images are loaded, draw;
@@ -134,6 +150,7 @@ $(document).ready(function() {
 
 			img.defaultY = data.defaultY;
 			img.defaultX = data.defaultX;
+			img.vpWidth = data.vpWidth;
 
 			fgImages[key] = img;
 			//when all images are loaded, draw;
@@ -168,6 +185,7 @@ $(document).ready(function() {
 				zoomDiff = (zoom - viewport.zoom) / steps;
 
 			}
+			console.log('zoomDiff: ' + zoomDiff);
 		}
 
 		//set the redraw interval
@@ -175,27 +193,24 @@ $(document).ready(function() {
 			if(! transitionView(x, zoom, zoomDiff)) {
 				clearInterval(interval);
 				moving = false;
+				viewport.x0 = x;
+				viewport.zoom = zoom;
+				redraw();
 			}
-		}, 10);
+		}, 20);
 	}
 	
 //handles a single frame of animation by adjusting image size and position and redrawing the canvas.
 	function transitionView(goalX, goalZoom, zoomDiff) {
-		//console.log(Math.abs(viewport.x0 - goalX) < 2 && (zoomDiff == undefined || Math.abs(viewport.zoom - goalZoom) < .01));
-		if(Math.abs(viewport.x0 - goalX) < 2) {
+		if(Math.abs(viewport.x0 - goalX) < 5) {
 			 if (zoomDiff == undefined || Math.abs(viewport.zoom - goalZoom) < .01) {
-/*				viewport.x0 = goalX;
-				viewport.zoom = goalZoom;
-				redraw();*/
 				return false;
 			} else {
 				viewport.zoom += zoomDiff;
-				//viewport.x1 += incr;
 			}
 		} else {
 			viewport.x0 += incr;
-			//viewport.x1 += incr;
-			if(goalZoom != undefined) {
+			if(zoomDiff != undefined) {
 				viewport.zoom += zoomDiff;
 			}
 		}
@@ -218,6 +233,9 @@ var mouseDownTime;
 
 //click handler
 	var panner = function(e) {
+		if(moving) {
+			return;
+		}
 		//if the click was a long click, don't do anything
 		if(e.timeStamp - mouseDownTime > 200) {
 			return;
@@ -227,7 +245,7 @@ var mouseDownTime;
 			shooting = false;
 			return;
 		}
-		if(getLeftBound() + viewport.x0 > viewport.width) {
+		if(getRightBound() + viewport.x0 >= viewport.width) {
 			modifyViewport(defaultLeft.zoom, defaultLeft.x0);
 		} else {
 			modifyViewport(defaultRight.zoom, defaultRight.x0);
@@ -241,16 +259,19 @@ var mouseDownTime;
 //zoom in and out with mousewheel
 	.mousewheel(function() {
 		if(!moving) {
-			if(viewport.zoom > .75) {
+			if(viewport.zoom > 1.5) {
 				//since we're going to the fully zoomed out pos, set viewport x to 0 so we're seeing the whole world.
-				modifyViewport(0.5, 0);
+				modifyViewport(1.0, 0);
 			} else {
-				modifyViewport(1.0, viewport.x0);
+				modifyViewport(2.0, viewport.x0);
 			}
 		}
 	})
 	//rubber band animations
  .mousedown(function(e) {
+	 if(moving) {
+		return;
+	 }
 	 mouseDownTime = e.timeStamp;
 	 console.log('zoom: ' + viewport.zoom);
 		
@@ -264,7 +285,7 @@ var mouseDownTime;
 			return;
 		}
 		//If we're not in a position to shoot, return.
-	 if(moving || viewport.x0 != 0){
+	 if(viewport.x0 != 0){
 		return;
 	 }
 	 moving = true;
@@ -272,6 +293,11 @@ var mouseDownTime;
 
 		prepareShot(relX, relY);
 		$(this).mousemove(function(e2) {
+			var relX2 = e2.pageX - canvasCoords.left;
+			var relY2 = e2.pageY - canvasCoords.top;
+			if(getBandSize(relX2, relY2) > bandSize) {
+				return;
+			}
 			prepareShot(e2.pageX - canvasCoords.left, e2.pageY - canvasCoords.top);
 		});
 		$(this).unbind('click');
@@ -293,27 +319,30 @@ var mouseDownTime;
 	//helper functions
 	function prepareShot(mouseX, mouseY) {
 		fgContext.clearRect(0, 0, viewport.width, viewport.height);
-		
 		var img = fgImages['SLINGSHOT_RUBBERBAND.png'];
-		var width = Math.ceil(img.width * viewport.zoom * .5);
-		var height = Math.ceil(img.height * viewport.zoom * .5);
-
-
+		//scale these down by .5
+		var canvWidth = .3 * getPixels(img.width);
+		var canvHeight = .3 * getPixels(img.height);
 		var ss = getSS();
-		var y = Math.round(viewport.height - viewport.groundY - ssHeight * viewport.zoom);
+
+		var mouseVpCoords = getViewportCoords(mouseX, mouseY);
+
 		for(var i in ss) {
 			var ssComponent = ss[i];
-			x = Math.ceil((ssComponent.defaultX - viewport.x0) * viewport.zoom);
+			var coords = getCanvasCoords(ssComponent.defaultX, ssComponent.defaultY);
 			if(ssComponent.index == 1) {
-				x += ssOffset.front.x;
-				y += ssOffset.front.y;
+				coords.x += ssOffset.front.x;
+				coords.y += ssOffset.front.y
 			} else {
-				x += ssOffset.back.x;
-				y += ssOffset.back.y;
+				coords.x += ssOffset.back.x;
+				coords.y += ssOffset.back.y;
 			}
-			
-			var delX = x - mouseX;
-			var delY = y - mouseY;
+			console.log('defX: ' + coords.x);
+			console.log('defY: ' + coords.y);
+
+
+			var delX = ssComponent.defaultX - mouseVpCoords.x;
+			var delY = ssComponent.defaultY - mouseVpCoords.y;
 			var angle = Math.atan(1.0 * delY / delX);
 			if(delX < 0) {
 				angle += Math.PI;
@@ -323,11 +352,16 @@ var mouseDownTime;
 			fgContext.translate(mouseX, mouseY);
 			fgContext.rotate(angle);
 			var rotHor = 0;
+			var dist = Math.sqrt(delX * delX + delY * delY);
 
-			while(rotHor < Math.sqrt(delX * delX + delY * delY)) {
-				fgContext.drawImage(img, rotHor, 0, width, height);//Math.ceil(img.width * viewport.zoom), Math.ceil(img.height * viewport.zoom));
-				rotHor += width;
+			while(rotHor + canvWidth <  getPixels(dist)) {
+				
+				fgContext.drawImage(img, rotHor, -1 * canvHeight / 2.0, canvWidth, canvHeight);
+				rotHor += canvWidth - 1;
 			}
+			//last tile
+			var finalCanvWidth = getPixels(dist) - rotHor;
+			fgContext.drawImage(img, 0, 0, finalCanvWidth * (canvWidth / img.vpWidth), img.height, rotHor, -1 * canvHeight / 2, finalCanvWidth, canvHeight);
 			fgContext.restore();
 
 		}
@@ -337,8 +371,9 @@ var mouseDownTime;
 		fgContext.clearRect(0, 0, viewport.width, viewport.height);
 	}
 
-	function getLeftBound() {
-		return viewport.x0 + (1 / (2 * viewport.zoom)) * viewport.width;
+	function getRightBound() {
+		var coords = getViewportCoords(800, 0);
+		return coords.x
 	}
 	
 	//place non-tile background images	
@@ -346,20 +381,24 @@ var mouseDownTime;
 		for(var i in bgImages) {
 			var img = bgImages[i];
 
-			var height = Math.round(img.height * viewport.zoom);
-			var width = img.width * viewport.zoom;
-			var y = Math.round(viewport.height - viewport.groundY - ssHeight * viewport.zoom);
+			var height = getPixels(img.vpHeight);
+			var width = getPixels(img.vpWidth);
 			var x;
 
-			if(img.defaultX < viewport.x0 && img.defaultX + img.width > viewport.x0) {
+			if(img.defaultX < viewport.x0 && img.defaultX + img.vpWidth > viewport.x0) {
 				var crop = viewport.x0 - img.defaultX;
-					
-				x = Math.floor((img.width - crop) * viewport.zoom);
-				//console.log([img, crop, 0, img.width - crop, img.height, x, y, Math.floor(crop * viewport.zoom), height]);
-				bgContext.drawImage(img, crop, 0, img.width - crop, img.height, 0, y, width - crop * viewport.zoom, height);
+				/*while(crop > img.vpWidth) {
+					crop -= img.vpWidth;
+				}*/
+
+				var imageWidth = Math.round(img.width - crop * (img.width / img.vpWidth));
+
+				var canvCoords = getCanvasCoords(viewport.x0, img.defaultY);
+				console.log([img, crop * (img.width / img.vpWidth), 0, imageWidth, img.height, canvCoords.x, canvCoords.y, width - getPixels(crop), height]);
+				bgContext.drawImage(img, crop * (img.width / img.vpWidth), 0, imageWidth, img.height, canvCoords.x, canvCoords.y, width - getPixels(crop), height);
 			} else if(img.defaultX >= viewport.x0) {
-				x = Math.floor((img.defaultX - viewport.x0) * viewport.zoom);
-				bgContext.drawImage(img, x, y, width, height);
+				var canvCoords = getCanvasCoords(img.defaultX, img.defaultY);
+				bgContext.drawImage(img, canvCoords.x, canvCoords.y, width, height);
 			}
 		}
 	}
@@ -369,19 +408,19 @@ var mouseDownTime;
 		for(var i in bgTiles) {
 			var img = bgTiles[i] 
 			//scaled dimensions of the image to account for zoom
-			adjustedWidth = img.width *  viewport.zoom;
-			adjustedHeight = img.height * viewport.zoom;
+			canvWidth = getPixels(img.vpWidth);
+			canvHeight = getPixels(img.vpHeight);
 			
-			//initial width of the image, adjusted for the viewport position
-			var initialWidth = (img.width - viewport.x0) * viewport.zoom;
-			while(initialWidth < 0) {
-				initialWidth += adjustedWidth;
+			//crop of the first image.
+			var initialOffset = viewport.x0;
+			while(initialOffset > img.vpWidth) {
+				initialOffset -= img.vpWidth;
 			}
+			//initial width of the image, adjusted for the viewport position
+			var initialCanvWidth = canvWidth - getPixels(initialOffset);
 
-			//offset of the first image, in terms of the images original size.
-			var initialOffset = img.width - (initialWidth / viewport.zoom);
-			initialWidth = Math.round(initialWidth);
 			var horzPos = 0;
+
 			
 			//specific positioning for each image
 			var y;	
@@ -390,35 +429,27 @@ var mouseDownTime;
 					y = viewport.height - viewport.groundY;
 					break;
 				case 2: 
-					y = viewport.height - viewport.groundY - img.height * viewport.zoom;
+					y = viewport.height - viewport.groundY - img.vpHeight;
 					break;
 			}
-			//turn floating points back to integers.
-			y = Math.round(y)
-			initialOffset = Math.round(initialOffset);
-			adjustedHeight = Math.round(adjustedHeight);
-			var crop = Math.floor(initialWidth / viewport.zoom);
-
 			//first tile
-			bgContext.drawImage(img, initialOffset, 0, crop, img.height, 0, y, initialWidth, adjustedHeight);
+			var canvCoords = getCanvasCoords(viewport.x0, y);
+			bgContext.drawImage(img, initialOffset * (img.width / img.vpWidth), 0, img.width - initialOffset * (img.width / img.vpWidth), img.height, horzPos, canvCoords.y, initialCanvWidth, canvHeight);
 
-			horzPos += initialWidth;
+			horzPos += initialCanvWidth;
 
 			//filler tiles
-			adjustedWidth = Math.round(adjustedWidth);
-			while(horzPos + adjustedWidth <= viewport.width){
-
-				bgContext.drawImage(img, horzPos, y, adjustedWidth, adjustedHeight);
-				horzPos += adjustedWidth;
+			while(horzPos + canvWidth <= viewport.width) {
+				bgContext.drawImage(img, horzPos, canvCoords.y, canvWidth, canvHeight);
+				horzPos += canvWidth;
 			}
 	
 			//last tile
-			var finalWidth = viewport.width - horzPos;
+			var finalWidth = getUnits(viewport.width - horzPos);
 			while(finalWidth <= 0) {
-				finalWidth += adjustedWidth;
+				finalWidth += img.vpWidth;
 			}
-			//console.log([viewport.x0, viewport.x1, finalWidth, horzPos]);
-			bgContext.drawImage(img, 0, 0, Math.floor(finalWidth / viewport.zoom), img.height, horzPos, y, finalWidth, adjustedHeight);
+			bgContext.drawImage(img, 0, 0, finalWidth * (img.width / img.vpWidth), img.height, horzPos, canvCoords.y, getPixels(finalWidth), canvHeight);
 		}
 	}
 	
@@ -447,17 +478,30 @@ var mouseDownTime;
 		return sec1 + sec2;
 	}
 
-//converts pixels on the canvas to units on the viewport
+//given a pixel location, convert to global viewport location
 	function getViewportCoords(canX, canY) {
-		console.log('canX: ' + canX);
-		var vpX = Math.round(canX / (2 * viewport.zoom) + viewport.x0);
-		console.log('vpx: ' + vpX);
-		var vpY = Math.round((canY - viewport.height + viewport.groundY) / (2 * viewport.zoom) + viewport.height - viewport.groundY);
-		//var vpY = Math.round(canY / (2 * viewport.zoom));
-		console.log('canY: ' + canY);
-		console.log('vpY: ' + vpY);
-		console.log('');
+		var vpX = Math.round(canX / viewport.zoom + viewport.x0);
+		var vpY = Math.round((canY - viewport.height + viewport.groundY) / viewport.zoom + viewport.height - viewport.groundY);
 		return {x: vpX, y: vpY};
+	}
+
+//given a global viewport x and y, get coords on the canvas right now
+	function getCanvasCoords(viewportX, viewportY) {
+		if(viewportX < viewport.x0) {
+			return -1;
+		}
+		var x = Math.round((viewportX - viewport.x0) * viewport.zoom);
+		var y = Math.round((viewportY - viewport.height + viewport.groundY) * viewport.zoom + viewport.height - viewport.groundY);
+		return {x: x, y: y}
+	}
+
+//convert viewport units to pixels
+	function getPixels(x) {
+		return Math.round(x * viewport.zoom);
+	}
+//convert pixels to viewport units
+	function getUnits(x) {
+		return Math.ceil(x / viewport.zoom);
 	}
 
 });
