@@ -3,7 +3,8 @@ $(document).ready(function() {
 	var fgContext = canvas.getContext('2d');
 	var canvas = document.getElementById('bg0');
 	var bgContext = canvas.getContext('2d');
-
+//physics world
+	var world;
 
 //initial values for viewport	
 	var viewport = {
@@ -11,9 +12,6 @@ $(document).ready(function() {
 		width: 800,
 		zoom: 1.0,
 		x0: 0, 
-		//x1: 800,
-		//y0: 0,
-		//y1: 600,
 		//ground level
 		groundY: 200,
 		//zoomed out
@@ -52,13 +50,15 @@ $(document).ready(function() {
 
 	//At full size, offset from the slingshot to the rubber band attachment points
 	const ssOffset = {
-		front: { x: 0, y: 0 },
-		back: { x: 0, y: 0}
+		front: { x: 17, y: 20 },
+		back: { x: 12, y: 20}
 	};
 	//height of the slingshot;
 	const ssHeight = 199;
 	//max size of rubber band
-	const bandSize = 350;
+	const bandSize = 170;
+	//force coefficient for physics
+	const forceCoeff = 20000000;
 	
 
 //load all the images and store them, then call redraw()
@@ -73,16 +73,6 @@ $(document).ready(function() {
 									 'INGAME_BIRDS_PIGS.png': {height: 920, width: 859},
 									 'SLINGSHOT_RUBBERBAND.png': {height: 16, width: 14, vpWidth: 7},
 		};
-		/*var bg1TileSrcs = {'BLUE_GRASS_FG_1.png': {height: 187 / 2, width: 332 / 2, defaultY: viewport.height - viewport.groundY, index: 1},
-									 'BLUE_GRASS_FG_2.png': {height: 33 / 2, width: 332 / 2, defaultY: viewport.height - viewport.groundY - 33, index: 2}, 
-		};
-		var bg1ImgSrcs = {'SLINGSHOT_01_BACK.png': {height: 199 / 2, width: 38 / 2, defaultY: viewport.height - viewport.groundY - 199, defaultX: 180, index: 1},
-									 		'SLINGSHOT_01_FRONT.png': {height: 124 / 2, width: 43 / 2, defaultY: viewport.height - viewport.groundY - 204, defaultX: 150, index: 2},
-		};
-		var fgImgSrcs = {
-									 'INGAME_BIRDS_PIGS.png': {height: 920, width: 859},
-									 'SLINGSHOT_RUBBERBAND.png': {height: 16, width: 14},
-		};*/
 		var loaded = 0;
 		var tileKeys = Object.keys(bg1TileSrcs);
 		var bgKeys = Object.keys(bg1ImgSrcs);
@@ -147,10 +137,11 @@ $(document).ready(function() {
 			var img = new Image();
 			img.src = '/images/' + key;
 			img.height = data.height;
+			img.width = data.width;
 
-			img.defaultY = data.defaultY;
-			img.defaultX = data.defaultX;
-			img.vpWidth = data.vpWidth;
+			if(data.vpWidth) {
+				img.vpWidth = data.vpWidth;
+			}
 
 			fgImages[key] = img;
 			//when all images are loaded, draw;
@@ -161,6 +152,44 @@ $(document).ready(function() {
 				}
 			}
 		}
+
+		//create physics world
+		var worldAABB = new b2AABB();
+		worldAABB.minVertex.Set(-1000, -1000)
+		worldAABB.maxVertex.Set(1000, 1000);
+		var gravity = new b2Vec2(0, 300);
+		
+		world = new b2World(worldAABB, gravity, true);
+		/*
+		** Create ground in physics world
+		*/	
+		var groundSd = new b2BoxDef();
+		//distance to center.
+		groundSd.extents.Set(400, 100);	
+		//restitution is bounce, value between 0 and 1
+		groundSd.restitution = 0.5;
+		var groundBd = new b2BodyDef();
+		groundBd.AddShape(groundSd);
+		groundBd.position.Set(400, 500);
+		world.CreateBody(groundBd);
+
+		var leftSd = new b2BoxDef();
+		leftSd.extents.Set(10, 300);
+		leftSd.restitution = 0.5;
+		var leftBd = new b2BodyDef();
+		leftBd.AddShape(leftSd);
+		leftBd.position.Set(-10, 300);
+		world.CreateBody(leftBd);
+
+		var rightSd = new b2BoxDef();
+		rightSd.extents.Set(10, 300);
+		rightSd.restitution = 0.5;
+		var rightBd = new b2BodyDef();
+		rightBd.AddShape(rightSd);
+		rightBd.position.Set(810, 300);
+		world.CreateBody(rightBd);
+		
+
 	}
 
 //called whenever some change to the viewport is occurring.	
@@ -301,16 +330,7 @@ var mouseDownTime;
 			prepareShot(e2.pageX - canvasCoords.left, e2.pageY - canvasCoords.top);
 		});
 		$(this).unbind('click');
-	})
- .mouseup(function(e) {
-	 //clear the slingshot graphics
-	clearShot();
-	//unbind mousemove handler
-	$(this).unbind('mousemove');
-	//rebind the click handler
-	$(this).click(panner);
-	 moving = false;
- });
+	});
 
 
 
@@ -326,23 +346,27 @@ var mouseDownTime;
 		var ss = getSS();
 
 		var mouseVpCoords = getViewportCoords(mouseX, mouseY);
+		
+		//used to calculate the midpoint of the slingshot
+		var midPtX = 0;
+		var midPtY = 0;
 
 		for(var i in ss) {
 			var ssComponent = ss[i];
-			var coords = getCanvasCoords(ssComponent.defaultX, ssComponent.defaultY);
+			//var coords = getCanvasCoords(ssComponent.defaultX, ssComponent.defaultY);
+			var x, y;
 			if(ssComponent.index == 1) {
-				coords.x += ssOffset.front.x;
-				coords.y += ssOffset.front.y
+				x = ssComponent.defaultX + ssOffset.front.x;
+				y = ssComponent.defaultY + ssOffset.front.y;
 			} else {
-				coords.x += ssOffset.back.x;
-				coords.y += ssOffset.back.y;
+				x = ssComponent.defaultX + ssOffset.back.x;
+				y = ssComponent.defaultY + ssOffset.back.y;
 			}
-			console.log('defX: ' + coords.x);
-			console.log('defY: ' + coords.y);
+			midPtX += x;
+			midPtY += y;
 
-
-			var delX = ssComponent.defaultX - mouseVpCoords.x;
-			var delY = ssComponent.defaultY - mouseVpCoords.y;
+			var delX = x - mouseVpCoords.x;
+			var delY = y - mouseVpCoords.y;
 			var angle = Math.atan(1.0 * delY / delX);
 			if(delX < 0) {
 				angle += Math.PI;
@@ -363,12 +387,101 @@ var mouseDownTime;
 			var finalCanvWidth = getPixels(dist) - rotHor;
 			fgContext.drawImage(img, 0, 0, finalCanvWidth * (canvWidth / img.vpWidth), img.height, rotHor, -1 * canvHeight / 2, finalCanvWidth, canvHeight);
 			fgContext.restore();
-
 		}
+
+		var bird = getMedBird();
+		console.log([bird.img, bird.sx, bird.sy, bird.sWidth, bird.sHeight, mouseX, mouseY, getPixels(bird.sWidth), getPixels(bird.sHeight)]);
+		var birdCanvWidth = getPixels(bird.sWidth / 2.0);
+		var birdCanvHeight = getPixels(bird.sHeight / 2.0);
+		fgContext.drawImage(bird.img, bird.sx, bird.sy, bird.sWidth, bird.sHeight, mouseX - birdCanvWidth / 2, mouseY - birdCanvHeight / 2, birdCanvWidth, birdCanvHeight);
+	
+		midPtX /= 2.0;
+		midPtY /= 2.0;	
+
+		var delX = midPtX - mouseVpCoords.x;
+		var delY = midPtY - mouseVpCoords.y;
+		var dist = Math.sqrt(delX * delX + delY * delY);
+		var angle = Math.atan(1.0 * delY / delX);
+		if(delX < 0) {
+			angle += Math.PI;
+		}
+		$('canvas').unbind('mouseup');
+		$('canvas').mouseup(function(e) {
+				 //clear the slingshot graphics
+				clearShot({x: mouseVpCoords.x, y: mouseVpCoords.y}, {x: bird.sWidth / 2.0, y: bird.sHeight / 2.0}, dist, angle);
+				//unbind mousemove handler
+				$(this).unbind('mousemove');
+		});
 	}
 
-	function clearShot() {
+	function clearShot(startCoords, dims, delta, angle) {
+		/*
+		** Create projectile
+		*/
+		var projectileSd = new b2BoxDef();
+		projectileSd.density = 1.0;
+		projectileSd.extents.Set(dims.x / 2, dims.y / 2);
+		projectileSd.restitution = 0.9;
+		projectileSd.friction = 1.0;
+		var projectileBd = new b2BodyDef();
+		projectileBd.AddShape(projectileSd);
+		console.log('x dim: ' + dims.x / 2);
+		console.log('y dim: ' + dims.y / 2);
+		console.log('x coord: ' + startCoords.x);
+		console.log('y coord: ' + startCoords.y);
+		projectileBd.position.Set(startCoords.x, startCoords.y);
+		var body = world.CreateBody(projectileBd);
+		body.userData = {projectile: true};
+
+		var forceX = forceCoeff * Math.cos(angle);
+		var forceY = forceCoeff * Math.sin(angle);
+
+		body.ApplyForce(new b2Vec2(forceX, forceY), new b2Vec2(startCoords.x, startCoords.y));
+
+		interval = setInterval(step, 10);
+	}
+//single physics step
+	function step() {
+		var timeStep = 1.0 / 60;
+		var iteration = 1;
+		world.Step(timeStep, iteration);
 		fgContext.clearRect(0, 0, viewport.width, viewport.height);
+		for(var i = world.m_bodyList; i; i=i.m_next) {
+			if(i.userData != undefined && i.userData.projectile == true) {
+				var velocity = i.GetLinearVelocity();
+				console.log('velx: ' + velocity.x);
+				console.log('vely: ' + velocity.y);
+				
+				//execute if movement is finished and we want to reset from shooting state to normal state.
+				if(Math.abs(velocity.x) < 0.001 && Math.abs(velocity.y) < 0.001) {
+					console.log('done');
+					fgContext.clearRect(0, 0, viewport.width, viewport.height);
+					clearInterval(interval);
+					//rebind the click handler
+					$(this).click(panner);
+					 moving = false;
+					 shooting = false;
+					 //destroy physics body
+					 world.DestroyBody(i);
+					 return;
+				}
+
+				for(var s = i.GetShapeList(); s != null; s = s.GetNext()) {
+					if(s != world.m_groundBody) {
+						drawShape(s, true);
+					}
+				}
+			}
+		}
+	}
+//draw physics shape on the canvas.
+	function drawShape(shape, projectile) {
+		if(projectile) {
+			var bird = getMedBird();
+			var width = getPixels(bird.sWidth / 2.0);
+			var height = getPixels(bird.sHeight / 2.0);
+			fgContext.drawImage(bird.img, bird.sx, bird.sy, bird.sWidth, bird.sHeight, shape.m_position.x - width / 2, shape.m_position.y - height / 2, width, height);
+		}
 	}
 
 	function getRightBound() {
@@ -387,9 +500,6 @@ var mouseDownTime;
 
 			if(img.defaultX < viewport.x0 && img.defaultX + img.vpWidth > viewport.x0) {
 				var crop = viewport.x0 - img.defaultX;
-				/*while(crop > img.vpWidth) {
-					crop -= img.vpWidth;
-				}*/
 
 				var imageWidth = Math.round(img.width - crop * (img.width / img.vpWidth));
 
@@ -465,16 +575,17 @@ var mouseDownTime;
 		for(var i in ss) {
 			img = ss[i];
 			if(img.index == 1) {
-				var y = viewport.height - viewport.groundY  - ssHeight + ssOffset.front.y;
+				var y = img.defaultY + ssOffset.front.y;
 				var x = img.defaultX + ssOffset.front.x;
 				sec1 = Math.sqrt((coords.x - x) * (coords.x - x) + (coords.y - y) * (coords.y - y));
 			} else {
-				var y = viewport.height - viewport.groundY  - ssHeight + ssOffset.back.y;
+				var y = img.defaultY + ssOffset.back.y;
 				var x = img.defaultX + ssOffset.back.x;
 				sec2 = Math.sqrt((coords.x - x) * (coords.x - x) + (coords.y - y) * (coords.y - y));
 			}
 			
 		}
+		console.log(sec1 + sec2);
 		return sec1 + sec2;
 	}
 
@@ -503,5 +614,12 @@ var mouseDownTime;
 	function getUnits(x) {
 		return Math.ceil(x / viewport.zoom);
 	}
+
+	function getMedBird() {
+		var charSheet = new Image();
+		src	= '/images/INGAME_BIRDS_PIGS.png';
+		return {img: fgImages['INGAME_BIRDS_PIGS.png'], sx: 800, sy: 0, sWidth: 59, sHeight: 50};
+	}
+
 
 });
