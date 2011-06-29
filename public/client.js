@@ -1,6 +1,8 @@
 $(document).ready(function() {
 	var canvas = document.getElementById('foreground');
 	var fgContext = canvas.getContext('2d');
+	var canvas = document.getElementById('fg1');
+	var fgContext2 = canvas.getContext('2d');
 	var canvas = document.getElementById('bg0');
 	var bgContext = canvas.getContext('2d');
 //physics world
@@ -9,8 +11,8 @@ $(document).ready(function() {
 //initial values for viewport	
 	var viewport = {
 		height: 600,
-		width: 800,
-		zoom: 1.0,
+		width: 1600,
+		zoom: 0.5,
 		x0: 0, 
 		//ground level
 		groundY: 200,
@@ -20,15 +22,15 @@ $(document).ready(function() {
 
 //default zoomed in left-hand position
 	var defaultLeft = {
-		zoom: 2.0,
+		zoom: 1.0,
 		x0: 0,
 		viewCode: 1,
 	};
 
 //default zoomed in right-hand position
 	var defaultRight = {
-		zoom: 2.0,
-		x0: 400,
+		zoom: 1.0,
+		x0: 800,
 		viewCode: 2,
 	}
 
@@ -47,6 +49,8 @@ $(document).ready(function() {
 	var shooting = false;
 	//global var so that we can always stop motion if we want
 	var interval;
+	//which player's turn is it? 0 or 1.
+	var turn = 0;
 
 	//At full size, offset from the slingshot to the rubber band attachment points
 	const ssOffset = {
@@ -61,136 +65,6 @@ $(document).ready(function() {
 	const forceCoeff = 20000000;
 	
 
-//load all the images and store them, then call redraw()
-	function init() {
-		var bg1TileSrcs = {'BLUE_GRASS_FG_1.png': {height: 187, width: 332, defaultY: viewport.height - viewport.groundY, index: 1, vpHeight: 93.5, vpWidth: 166},
-									 'BLUE_GRASS_FG_2.png': {height: 33, width: 332, defaultY: viewport.height - viewport.groundY - 16.5, index: 2, vpHeight: 16.5, vpWidth: 166}, 
-		};
-		var bg1ImgSrcs = {'SLINGSHOT_01_BACK.png': {height: 199, width: 38, defaultY: viewport.height - viewport.groundY - 99.5, defaultX: 135, index: 1, vpHeight: 99.5, vpWidth: 19},
-									 		'SLINGSHOT_01_FRONT.png': {height: 124, width: 43, defaultY: viewport.height - viewport.groundY - 104, defaultX: 120, index: 2, vpHeight: 62, vpWidth: 21.5},
-		};
-		var fgImgSrcs = {
-									 'INGAME_BIRDS_PIGS.png': {height: 920, width: 859},
-									 'SLINGSHOT_RUBBERBAND.png': {height: 16, width: 14, vpWidth: 7},
-		};
-		var loaded = 0;
-		var tileKeys = Object.keys(bg1TileSrcs);
-		var bgKeys = Object.keys(bg1ImgSrcs);
-		var fgKeys = Object.keys(fgImgSrcs);
-
-		var totalImages = tileKeys.length + bgKeys.length + fgKeys.length;
-
-		//load tile images
-		var key;
-		for(var i = 0, ll = tileKeys.length; i < ll; i++) {
-			key = tileKeys[i];
-			data = bg1TileSrcs[key];
-
-			var img = new Image();
-			img.src = '/images/' + key;
-			img.height = data.height;
-			img.width = data.width;
-			img.defaultY= data.defaultY;
-			img.index = data.index;
-			img.vpWidth = data.vpWidth;
-			img.vpHeight = data.vpHeight;
-
-			bgTiles[key] = img;
-			//when all images are loaded, draw.
-			img.onload = function() {
-				loaded++;
-				if(loaded == totalImages) {
-					redraw();
-				}
-			}
-		};
-
-		//load non-tile bg images
-		for(var i = 0, ll = bgKeys.length; i < ll; i++) {
-			key = bgKeys[i];
-			data = bg1ImgSrcs[key];
-
-			var img = new Image();
-			img.src = '/images/' + key;
-			img.height = data.height;
-			img.defaultY = data.defaultY;
-			img.defaultX = data.defaultX;
-			img.index = data.index;
-			img.vpWidth = data.vpWidth;
-			img.vpHeight = data.vpHeight;
-
-			bgImages[key] = img;
-			//when all images are loaded, draw;
-			img.onload = function() {
-				loaded++;
-				if(loaded == totalImages) {
-					redraw();
-				}
-			}
-		}
-
-		//load foreground images
-		for(var i = 0, ll = fgKeys.length; i < ll; i++) {
-			key = fgKeys[i];
-			data = fgImgSrcs[key];
-
-			var img = new Image();
-			img.src = '/images/' + key;
-			img.height = data.height;
-			img.width = data.width;
-
-			if(data.vpWidth) {
-				img.vpWidth = data.vpWidth;
-			}
-
-			fgImages[key] = img;
-			//when all images are loaded, draw;
-			img.onload = function() {
-				loaded++;
-				if(loaded == totalImages) {
-					redraw();
-				}
-			}
-		}
-
-		//create physics world
-		var worldAABB = new b2AABB();
-		worldAABB.minVertex.Set(-1000, -1000)
-		worldAABB.maxVertex.Set(1000, 1000);
-		var gravity = new b2Vec2(0, 300);
-		
-		world = new b2World(worldAABB, gravity, true);
-		/*
-		** Create ground in physics world
-		*/	
-		var groundSd = new b2BoxDef();
-		//distance to center.
-		groundSd.extents.Set(400, 100);	
-		//restitution is bounce, value between 0 and 1
-		groundSd.restitution = 0.5;
-		var groundBd = new b2BodyDef();
-		groundBd.AddShape(groundSd);
-		groundBd.position.Set(400, 500);
-		world.CreateBody(groundBd);
-
-		var leftSd = new b2BoxDef();
-		leftSd.extents.Set(10, 300);
-		leftSd.restitution = 0.5;
-		var leftBd = new b2BodyDef();
-		leftBd.AddShape(leftSd);
-		leftBd.position.Set(-10, 300);
-		world.CreateBody(leftBd);
-
-		var rightSd = new b2BoxDef();
-		rightSd.extents.Set(10, 300);
-		rightSd.restitution = 0.5;
-		var rightBd = new b2BodyDef();
-		rightBd.AddShape(rightSd);
-		rightBd.position.Set(810, 300);
-		world.CreateBody(rightBd);
-		
-
-	}
 
 //called whenever some change to the viewport is occurring.	
 	function modifyViewport(zoom, x) {
@@ -250,8 +124,11 @@ $(document).ready(function() {
 	//redraw the entire canvas with updated positions.
 	function redraw() {
 		bgContext.clearRect(0, 0, viewport.width, viewport.height);
+		fgContext.clearRect(0, 0, viewport.width, viewport.height);
+		fgContext2.clearRect(0, 0, viewport.width, viewport.height);
 		placeBgTiles();
 		placeBgImages();
+		drawLevel();
 	}
 
 /*
@@ -288,11 +165,11 @@ var mouseDownTime;
 //zoom in and out with mousewheel
 	.mousewheel(function() {
 		if(!moving) {
-			if(viewport.zoom > 1.5) {
+			if(viewport.zoom > .75) {
 				//since we're going to the fully zoomed out pos, set viewport x to 0 so we're seeing the whole world.
-				modifyViewport(1.0, 0);
+				modifyViewport(0.5, 0);
 			} else {
-				modifyViewport(2.0, viewport.x0);
+				modifyViewport(1.0, viewport.x0);
 			}
 		}
 	})
@@ -338,7 +215,7 @@ var mouseDownTime;
 
 	//helper functions
 	function prepareShot(mouseX, mouseY) {
-		fgContext.clearRect(0, 0, viewport.width, viewport.height);
+		fgContext2.clearRect(0, 0, viewport.width, viewport.height);
 		var img = fgImages['SLINGSHOT_RUBBERBAND.png'];
 		//scale these down by .5
 		var canvWidth = .3 * getPixels(img.width);
@@ -372,28 +249,27 @@ var mouseDownTime;
 				angle += Math.PI;
 			}
 
-			fgContext.save();
-			fgContext.translate(mouseX, mouseY);
-			fgContext.rotate(angle);
+			fgContext2.save();
+			fgContext2.translate(mouseX, mouseY);
+			fgContext2.rotate(angle);
 			var rotHor = 0;
 			var dist = Math.sqrt(delX * delX + delY * delY);
 
 			while(rotHor + canvWidth <  getPixels(dist)) {
 				
-				fgContext.drawImage(img, rotHor, -1 * canvHeight / 2.0, canvWidth, canvHeight);
+				fgContext2.drawImage(img, rotHor, -1 * canvHeight / 2.0, canvWidth, canvHeight);
 				rotHor += canvWidth - 1;
 			}
 			//last tile
 			var finalCanvWidth = getPixels(dist) - rotHor;
-			fgContext.drawImage(img, 0, 0, finalCanvWidth * (canvWidth / img.vpWidth), img.height, rotHor, -1 * canvHeight / 2, finalCanvWidth, canvHeight);
-			fgContext.restore();
+			fgContext2.drawImage(img, 0, 0, finalCanvWidth * (canvWidth / img.vpWidth), img.height, rotHor, -1 * canvHeight / 2, finalCanvWidth, canvHeight);
+			fgContext2.restore();
 		}
 
 		var bird = getMedBird();
-		console.log([bird.img, bird.sx, bird.sy, bird.sWidth, bird.sHeight, mouseX, mouseY, getPixels(bird.sWidth), getPixels(bird.sHeight)]);
 		var birdCanvWidth = getPixels(bird.sWidth / 2.0);
 		var birdCanvHeight = getPixels(bird.sHeight / 2.0);
-		fgContext.drawImage(bird.img, bird.sx, bird.sy, bird.sWidth, bird.sHeight, mouseX - birdCanvWidth / 2, mouseY - birdCanvHeight / 2, birdCanvWidth, birdCanvHeight);
+		fgContext2.drawImage(bird.img, bird.sx, bird.sy, bird.sWidth, bird.sHeight, mouseX - birdCanvWidth / 2, mouseY - birdCanvHeight / 2, birdCanvWidth, birdCanvHeight);
 	
 		midPtX /= 2.0;
 		midPtY /= 2.0;	
@@ -419,9 +295,9 @@ var mouseDownTime;
 		** Create projectile
 		*/
 		var projectileSd = new b2BoxDef();
-		projectileSd.density = 1.0;
+		projectileSd.density = .75;
 		projectileSd.extents.Set(dims.x / 2, dims.y / 2);
-		projectileSd.restitution = 0.9;
+		projectileSd.restitution = 0.0;
 		projectileSd.friction = 1.0;
 		var projectileBd = new b2BodyDef();
 		projectileBd.AddShape(projectileSd);
@@ -431,56 +307,128 @@ var mouseDownTime;
 		console.log('y coord: ' + startCoords.y);
 		projectileBd.position.Set(startCoords.x, startCoords.y);
 		var body = world.CreateBody(projectileBd);
-		body.userData = {projectile: true};
+		body.userData = {type: 'projectile', defPos: 0};
 
 		var forceX = forceCoeff * Math.cos(angle);
 		var forceY = forceCoeff * Math.sin(angle);
 
 		body.ApplyForce(new b2Vec2(forceX, forceY), new b2Vec2(startCoords.x, startCoords.y));
 
-		interval = setInterval(step, 10);
+		(function interval() {
+			setTimeout(function() {
+				if(step(true)) {
+					interval();
+				} else {
+					step(true);
+					(function secondInterval() {
+						setTimeout(function() {
+							if(step(false)) {
+								console.log(1);
+								secondInterval();
+							} else {
+								console.log(2);
+								step(false);
+							}
+						}, 20);
+					})();
+				}
+			}, 20);
+		})();
 	}
+
 //single physics step
-	function step() {
+	function step(trigger) {
 		var timeStep = 1.0 / 60;
 		var iteration = 1;
 		world.Step(timeStep, iteration);
 		fgContext.clearRect(0, 0, viewport.width, viewport.height);
+		fgContext2.clearRect(0, 0, viewport.width, viewport.height);
 		for(var i = world.m_bodyList; i; i=i.m_next) {
-			if(i.userData != undefined && i.userData.projectile == true) {
-				var velocity = i.GetLinearVelocity();
-				console.log('velx: ' + velocity.x);
-				console.log('vely: ' + velocity.y);
-				
-				//execute if movement is finished and we want to reset from shooting state to normal state.
-				if(Math.abs(velocity.x) < 0.001 && Math.abs(velocity.y) < 0.001) {
-					console.log('done');
-					fgContext.clearRect(0, 0, viewport.width, viewport.height);
-					clearInterval(interval);
-					//rebind the click handler
-					$(this).click(panner);
-					 moving = false;
-					 shooting = false;
-					 //destroy physics body
-					 world.DestroyBody(i);
-					 return;
+			if(i.userData != undefined) {
+				if(trigger && i.userData.type == 'projectile') {
+					var velocity = i.GetLinearVelocity();
+					//execute if movement is finished and we want to reset from shooting state to normal state.
+					if(Math.abs(velocity.x) < 0.01 && Math.abs(velocity.y) < 0.01) {
+						console.log('projectile vel: ' + [velocity.x, velocity.y]);
+						if(structureIsStatic()) {
+							console.log('done');
+							//rebind the click handler and unbind mouseup
+							$('canvas').click(panner).unbind('mouseup');
+							 moving = false;
+							 shooting = false;
+							 //destroy physics body
+							 world.DestroyBody(i);
+							 return false;
+						}
+					}
+				} else if(!trigger) {
+					if(structureIsStatic()) {
+						return false;
+					}
 				}
-
 				for(var s = i.GetShapeList(); s != null; s = s.GetNext()) {
 					if(s != world.m_groundBody) {
-						drawShape(s, true);
+						drawShape(s, i.userData.type, i.userData.defPos, i.m_rotation);
 					}
+				}
+			}
+		}
+		return true;
+	}
+	//draw the structure
+	function drawLevel() {
+		for(var i = world.m_bodyList; i; i = i.m_next) {
+			if(i.userData != undefined && i.userData.type != 'projectile') {
+				for(var s = i.GetShapeList(); s != null; s = s.GetNext()) {
+						drawShape(s, i.userData.type, i.userData.defPos, i.m_rotation);
 				}
 			}
 		}
 	}
 //draw physics shape on the canvas.
-	function drawShape(shape, projectile) {
-		if(projectile) {
-			var bird = getMedBird();
-			var width = getPixels(bird.sWidth / 2.0);
-			var height = getPixels(bird.sHeight / 2.0);
-			fgContext.drawImage(bird.img, bird.sx, bird.sy, bird.sWidth, bird.sHeight, shape.m_position.x - width / 2, shape.m_position.y - height / 2, width, height);
+	function drawShape(shape, type, defPos, angle) {
+		switch(type) {
+			case 'projectile': 
+				fgContext2.save();
+				var translateCoords = getCanvasCoords(shape.m_position.x, shape.m_position.y);
+				//console.log([shape.m_position.x, shape.m_position.y]);
+				fgContext2.translate(translateCoords.x, translateCoords.y);
+				fgContext2.rotate(angle + defPos);
+				var bird = getMedBird();
+				var width = getPixels(bird.sWidth / 2.0);
+				var height = getPixels(bird.sHeight / 2.0);
+				
+				
+				fgContext2.drawImage(bird.img, bird.sx, bird.sy, bird.sWidth, bird.sHeight, -width / 2.0, -height / 2.0, width, height);
+				fgContext2.restore();
+				break;	
+			case 'longWood':
+				fgContext.save();
+				var translateCoords = getCanvasCoords(shape.m_position.x, shape.m_position.y);
+				//console.log('drawShape position: ' + [shape.m_position.x, shape.m_position.y]);
+				fgContext.translate(translateCoords.x, translateCoords.y);
+				fgContext.rotate(angle + defPos);
+				var longWood = getGameBlock(5, 5, 2.5, .25, 0, 1, 1, 4);
+				var width = getPixels(longWood.sWidth / 1.5);
+				var height = getPixels(longWood.sHeight / 1.5);
+				fgContext.drawImage(longWood.img, longWood.sx, longWood.sy, longWood.sWidth, longWood.sHeight, -width / 2.0, -height / 2.0, width, height);
+				fgContext.restore();
+				break;
+			case 'platform':
+				fgContext.save();
+				var translateCoords = getCanvasCoords(shape.m_position.x, shape.m_position.y);
+				fgContext.translate(translateCoords.x, translateCoords.y);
+				//console.log('drawShape position: ' + [shape.m_position.x, shape.m_position.y]);
+				fgContext.rotate(angle + defPos);
+				//console.log([angle + defPos]);
+				var platform = getMiscPlatform1();
+				var vpWidth = platform.sWidth / 1.5;
+				var vpHeight = platform.sHeight / 1.5;
+				var canvWidth = getPixels(vpWidth);
+				var canvHeight = getPixels(vpHeight);
+				fgContext.drawImage(platform.img, platform.sx, platform.sy, platform.sWidth, platform.sHeight, -canvWidth / 2.0, -canvHeight / 2.0, canvWidth, canvHeight);
+				fgContext.restore();
+				break;
 		}
 	}
 
@@ -504,7 +452,6 @@ var mouseDownTime;
 				var imageWidth = Math.round(img.width - crop * (img.width / img.vpWidth));
 
 				var canvCoords = getCanvasCoords(viewport.x0, img.defaultY);
-				console.log([img, crop * (img.width / img.vpWidth), 0, imageWidth, img.height, canvCoords.x, canvCoords.y, width - getPixels(crop), height]);
 				bgContext.drawImage(img, crop * (img.width / img.vpWidth), 0, imageWidth, img.height, canvCoords.x, canvCoords.y, width - getPixels(crop), height);
 			} else if(img.defaultX >= viewport.x0) {
 				var canvCoords = getCanvasCoords(img.defaultX, img.defaultY);
@@ -585,7 +532,7 @@ var mouseDownTime;
 			}
 			
 		}
-		console.log(sec1 + sec2);
+		console.log('band size: ' + (sec1 + sec2));
 		return sec1 + sec2;
 	}
 
@@ -621,5 +568,244 @@ var mouseDownTime;
 		return {img: fgImages['INGAME_BIRDS_PIGS.png'], sx: 800, sy: 0, sWidth: 59, sHeight: 50};
 	}
 
+
+//load all the images and store them, then call redraw()
+	function init() {
+		var bg1TileSrcs = {'BLUE_GRASS_FG_1.png': {height: 187, width: 332, defaultY: viewport.height - viewport.groundY, index: 1, vpHeight: 93.5, vpWidth: 166},
+									 'BLUE_GRASS_FG_2.png': {height: 33, width: 332, defaultY: viewport.height - viewport.groundY - 16.5, index: 2, vpHeight: 16.5, vpWidth: 166}, 
+		};
+		var bg1ImgSrcs = {'SLINGSHOT_01_BACK.png': {height: 199, width: 38, defaultY: viewport.height - viewport.groundY - 99.5, defaultX: 135, index: 1, vpHeight: 99.5, vpWidth: 19},
+									 		'SLINGSHOT_01_FRONT.png': {height: 124, width: 43, defaultY: viewport.height - viewport.groundY - 104, defaultX: 120, index: 2, vpHeight: 62, vpWidth: 21.5},
+		};
+		var fgImgSrcs = {
+									 'INGAME_BIRDS_PIGS.png': {height: 920, width: 859},
+									 'SLINGSHOT_RUBBERBAND.png': {height: 16, width: 14, vpWidth: 7},
+									 'INGAME_BLOCKS_BASIC.png': {height: 739, width: 791},
+									 'INGAME_BLOCKS_MISC.png': {height: 494, width: 585},
+		};
+		var loaded = 0;
+		var tileKeys = Object.keys(bg1TileSrcs);
+		var bgKeys = Object.keys(bg1ImgSrcs);
+		var fgKeys = Object.keys(fgImgSrcs);
+
+		var totalImages = tileKeys.length + bgKeys.length + fgKeys.length;
+
+		//load tile images
+		var key;
+		for(var i = 0, ll = tileKeys.length; i < ll; i++) {
+			key = tileKeys[i];
+			data = bg1TileSrcs[key];
+
+			var img = new Image();
+			img.src = '/images/' + key;
+			img.height = data.height;
+			img.width = data.width;
+			img.defaultY= data.defaultY;
+			img.index = data.index;
+			img.vpWidth = data.vpWidth;
+			img.vpHeight = data.vpHeight;
+
+			bgTiles[key] = img;
+			//when all images are loaded, draw.
+			img.onload = function() {
+				loaded++;
+				if(loaded == totalImages) {
+					redraw();
+					createLevel();
+				}
+			}
+		};
+
+		//load non-tile bg images
+		for(var i = 0, ll = bgKeys.length; i < ll; i++) {
+			key = bgKeys[i];
+			data = bg1ImgSrcs[key];
+
+			var img = new Image();
+			img.src = '/images/' + key;
+			img.height = data.height;
+			img.defaultY = data.defaultY;
+			img.defaultX = data.defaultX;
+			img.index = data.index;
+			img.vpWidth = data.vpWidth;
+			img.vpHeight = data.vpHeight;
+
+			bgImages[key] = img;
+			//when all images are loaded, draw;
+			img.onload = function() {
+				loaded++;
+				if(loaded == totalImages) {
+					redraw();
+					createLevel();
+				}
+			}
+		}
+
+		//load foreground images
+		for(var i = 0, ll = fgKeys.length; i < ll; i++) {
+			key = fgKeys[i];
+			data = fgImgSrcs[key];
+
+			var img = new Image();
+			img.src = '/images/' + key;
+			img.height = data.height;
+			img.width = data.width;
+
+			if(data.vpWidth) {
+				img.vpWidth = data.vpWidth;
+			}
+
+			fgImages[key] = img;
+			//when all images are loaded, draw;
+			img.onload = function() {
+				loaded++;
+				if(loaded == totalImages) {
+					createLevel();
+					redraw();
+				}
+			}
+		}
+
+		//create physics world
+		var worldAABB = new b2AABB();
+		worldAABB.minVertex.Set(-1000, -1000)
+		worldAABB.maxVertex.Set(2000, 2000);
+		var gravity = new b2Vec2(0, 300);
+		
+		world = new b2World(worldAABB, gravity, true);
+		/*
+		** Create ground in physics world
+		*/	
+		var groundSd = new b2BoxDef();
+		//distance to center.
+		groundSd.extents.Set(800, 100);	
+		//restitution is bounce, value between 0 and 1
+		groundSd.restitution = 0.0;
+		var groundBd = new b2BodyDef();
+		groundBd.AddShape(groundSd);
+		groundBd.position.Set(800, 500);
+		world.CreateBody(groundBd);
+
+		var leftSd = new b2BoxDef();
+		leftSd.extents.Set(10, 300);
+		leftSd.restitution = 0.0;
+		var leftBd = new b2BodyDef();
+		leftBd.AddShape(leftSd);
+		leftBd.position.Set(-10, 300);
+		world.CreateBody(leftBd);
+
+		var rightSd = new b2BoxDef();
+		rightSd.extents.Set(10, 300);
+		rightSd.restitution = 0.0;
+		var rightBd = new b2BodyDef();
+		rightBd.AddShape(rightSd);
+		rightBd.position.Set(1610, 300);
+		world.CreateBody(rightBd);
+
+
+	}
+
+	function createLevel() {
+		//create level 1
+		//draw platforms
+		var platform = getMiscPlatform1();
+		var platformWidth = platform.sWidth / 1.5;
+		var platformHeight = platform.sHeight / 1.5;
+		var platform1VpX = 1100;
+		var platform2VpX = 1225;
+		var platformVpY = viewport.height - viewport.groundY - platformHeight;
+		var platform1Coords = getCanvasCoords(1100, viewport.height - viewport.groundY - platformHeight);
+		var platform2Coords = getCanvasCoords(1225, viewport.height - viewport.groundY - platformHeight);
+		console.log([platform.img, platform.sx, platform.sy, platform.sWidth, platform.sHeight, platform1Coords.x, platform1Coords.y, getPixels(platformWidth), getPixels(platformHeight)]);
+		//fgContext.drawImage(platform.img, platform.sx, platform.sy, platform.sWidth, platform.sHeight, platform1Coords.x, platform1Coords.y, getPixels(platformWidth), getPixels(platformHeight));
+		//fgContext.drawImage(platform.img, platform.sx, platform.sy, platform.sWidth, platform.sHeight, platform2Coords.x, platform2Coords.y, getPixels(platformWidth), getPixels(platformHeight));
+
+		//create physics bodies for platforms
+		createBox(platform1VpX, platformVpY, platformWidth, platformHeight, 'platform', 0);
+
+		console.log('createLevel pixels: ' + [platform1Coords.x, platform1Coords.y]);
+		console.log('createLevel vp: ' + [platform1VpX, platformVpY]);
+
+		createBox(platform2VpX, platformVpY, platformWidth, platformHeight, 'platform', 0);
+
+		//save so we can revert after we rotate
+		fgContext.save();
+
+		//draw verticles
+		var longWood = getGameBlock(5, 5, 2.5, .25, 0, 1, 1, 4);
+		var longWoodWidth = longWood.sWidth / 1.5;
+		var longWoodHeight = longWood.sHeight / 1.5;
+
+		var constructionHeight = viewport.height - viewport.groundY - platformHeight - longWoodWidth;
+
+		var longWood1VpX = 65;
+		var longWood2VpX = 43;
+
+		//create physics bodies for long wood pieces
+		createBox(longWood1VpX + platform1VpX, constructionHeight, longWoodHeight, longWoodWidth, 'longWood', Math.PI / 2.0);
+		createBox(longWood2VpX + platform2VpX, constructionHeight, longWoodHeight, longWoodWidth, 'longWood', Math.PI / 2.0);
+		createBox(longWood1VpX + platform1VpX, constructionHeight - longWoodHeight, longWoodWidth, longWoodHeight, 'longWood', 0);
+		createBox(15 + platform1VpX + longWood1VpX, constructionHeight - longWoodHeight - longWoodWidth, longWoodHeight, longWoodWidth, 'longWood', Math.PI / 2.0);
+		createBox(longWood2VpX + platform2VpX - 15, constructionHeight - longWoodHeight - longWoodWidth, longWoodHeight, longWoodWidth, 'longWood', Math.PI / 2.0);
+	}
+
+	function createBox(vpX, vpY, width, height, bodyType, defaultPos) {
+		//physics position is set as center
+		var x = vpX + width / 2.0;
+
+		var boxSd = new b2BoxDef();
+		boxSd.extents.Set(width / 2.0, height / 2.0);
+		boxSd.restitution = 0.0;
+		boxSd.density = 1.0;
+		var boxBd = new b2BodyDef();
+		boxBd.AddShape(boxSd);
+		boxBd.position.Set(x, vpY + height / 2.0);
+		var body = world.CreateBody(boxBd);
+		body.userData = {type: bodyType, defPos: defaultPos};
+		return body;
+	}
+
+//get the platform from the INGAME_BLOCKS_MISC.png spritesheet
+	function getMiscPlatform1() {
+		return {img: fgImages['INGAME_BLOCKS_MISC.png'], sx: 340,sy: 283,sWidth: 187, sHeight: 57};
+	}
+	
+	//get element in 'INGAME_BLOCKS_BASIC.png'
+	function getGameBlock(row, col, unitWidth, unitHeight, subRow, subCol, subWidth, subHeight) {
+		var gridWidth = 82.2;
+		var gridHeight = 87.3;
+		var sx = col * gridWidth;
+		var sy = row * gridHeight;
+		var width = gridWidth * unitWidth;
+		var height = gridHeight * unitHeight;
+		if(subRow) {
+			sx += subRow * subWidth;
+		}
+		if(subCol) {
+			sy += subCol * subHeight;
+		}
+		//tighten it up due to inconsistency of sprite sheet
+		sx += 3;
+		width -= 5;
+		return {img: fgImages['INGAME_BLOCKS_BASIC.png'], sx: sx, sy: sy, sWidth: width, sHeight: height};
+	}
+
+	function structureIsStatic() {
+		for(var i = world.m_bodyList; i; i=i.m_next) {
+			if(i.userData != undefined) {
+				switch(i.userData.type) {
+					case 'longWood': case 'platform':
+						var velocity = i.GetLinearVelocity();
+						console.log('block velocity: ' + [velocity.x, velocity.y]);
+						if(! (Math.abs(velocity.x) < 5 && Math.abs(velocity.y) < 5)) {
+							console.log('false');
+							return false;
+						}
+						break;
+				}
+			}
+		}
+		return true;
+	}
 
 });
