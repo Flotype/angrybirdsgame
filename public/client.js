@@ -15,7 +15,7 @@ $(document).ready(function() {
 		zoom: 0.5,
 		x0: 0, 
 		//ground level
-		groundY: 200,
+		groundY: 100,
 		//zoomed out
 		currView: 0,
 	};
@@ -41,8 +41,6 @@ $(document).ready(function() {
 //stores images that live on the foreground
 	var fgImages = {};
 
-//speed that viewport is moved
-	var incr;
 	//whether or not we are in motion;
 	var moving = false
 	//whether we are shooting
@@ -50,7 +48,7 @@ $(document).ready(function() {
 	//global var so that we can always stop motion if we want
 	var interval;
 	//which player's turn is it? 0 or 1.
-	var turn = 0;
+	var turn;
 
 	//At full size, offset from the slingshot to the rubber band attachment points
 	const ssOffset = {
@@ -71,6 +69,7 @@ $(document).ready(function() {
 		if(moving) {
 			return;
 		}
+		var incr;
 		moving = true;
 		if(x > viewport.x0) {
 			incr = 4;
@@ -88,23 +87,28 @@ $(document).ready(function() {
 				zoomDiff = (zoom - viewport.zoom) / steps;
 
 			}
-			console.log('zoomDiff: ' + zoomDiff);
 		}
 
 		//set the redraw interval
 		interval = setInterval(function() {
-			if(! transitionView(x, zoom, zoomDiff)) {
+			if(! transitionView(x, zoom, incr, zoomDiff)) {
 				clearInterval(interval);
 				moving = false;
 				viewport.x0 = x;
 				viewport.zoom = zoom;
+				if(viewport.x0 > viewport.width - 5) {
+					viewport.x0 -= viewport.width;
+					if(viewport.x0 < 0) {
+						viewport.x0 = 0;
+					}
+				}
 				redraw();
 			}
-		}, 20);
+		}, 10);
 	}
 	
 //handles a single frame of animation by adjusting image size and position and redrawing the canvas.
-	function transitionView(goalX, goalZoom, zoomDiff) {
+	function transitionView(goalX, goalZoom, incr, zoomDiff) {
 		if(Math.abs(viewport.x0 - goalX) < 5) {
 			 if (zoomDiff == undefined || Math.abs(viewport.zoom - goalZoom) < .01) {
 				return false;
@@ -158,60 +162,6 @@ var mouseDownTime;
 		}
 	};
 
-//toggle zoom and panning
-	$('canvas').click(function(e) {
-		panner(e)
-	})
-//zoom in and out with mousewheel
-	.mousewheel(function() {
-		if(!moving) {
-			if(viewport.zoom > .75) {
-				//since we're going to the fully zoomed out pos, set viewport x to 0 so we're seeing the whole world.
-				modifyViewport(0.5, 0);
-			} else {
-				modifyViewport(1.0, viewport.x0);
-			}
-		}
-	})
-	//rubber band animations
- .mousedown(function(e) {
-	 if(moving) {
-		return;
-	 }
-	 mouseDownTime = e.timeStamp;
-	 console.log('zoom: ' + viewport.zoom);
-		
-		var canvasCoords = $('canvas').offset();
-		var relX = e.pageX - canvasCoords.left;
-		var relY = e.pageY - canvasCoords.top;
-		var rad = getBandSize(relX, relY);
-		console.log('rad: ' + rad);
-		//If cursor is outside of the range of the rubber band, return
-		if(rad > bandSize) {
-			return;
-		}
-		//If we're not in a position to shoot, return.
-	 if(viewport.x0 != 0){
-		return;
-	 }
-	 moving = true;
-	 shooting = true;
-
-		prepareShot(relX, relY);
-		$(this).mousemove(function(e2) {
-			var relX2 = e2.pageX - canvasCoords.left;
-			var relY2 = e2.pageY - canvasCoords.top;
-			if(getBandSize(relX2, relY2) > bandSize) {
-				return;
-			}
-			prepareShot(e2.pageX - canvasCoords.left, e2.pageY - canvasCoords.top);
-		});
-		$(this).unbind('click');
-	});
-
-
-
-	init();
 
 	//helper functions
 	function prepareShot(mouseX, mouseY) {
@@ -284,57 +234,14 @@ var mouseDownTime;
 		$('canvas').unbind('mouseup');
 		$('canvas').mouseup(function(e) {
 				 //clear the slingshot graphics
-				clearShot({x: mouseVpCoords.x, y: mouseVpCoords.y}, {x: bird.sWidth / 2.0, y: bird.sHeight / 2.0}, dist, angle);
+				now.distributeShot({x: mouseVpCoords.x, y: mouseVpCoords.y}, {x: bird.sWidth / 2.0, y: bird.sHeight / 2.0}, dist, angle, now.groupName);
+				//now.distributeShot(mouseVpCoords.x, mouseVpCoords.y, bird.sWidth / 2.0, bird.sHeight / 2.0, dist, angle, now.groupName);
+				//now.log("hi");
 				//unbind mousemove handler
 				$(this).unbind('mousemove');
 		});
 	}
 
-	function clearShot(startCoords, dims, delta, angle) {
-		/*
-		** Create projectile
-		*/
-		var projectileSd = new b2BoxDef();
-		projectileSd.density = .75;
-		projectileSd.extents.Set(dims.x / 2, dims.y / 2);
-		projectileSd.restitution = 0.0;
-		projectileSd.friction = 1.0;
-		var projectileBd = new b2BodyDef();
-		projectileBd.AddShape(projectileSd);
-		console.log('x dim: ' + dims.x / 2);
-		console.log('y dim: ' + dims.y / 2);
-		console.log('x coord: ' + startCoords.x);
-		console.log('y coord: ' + startCoords.y);
-		projectileBd.position.Set(startCoords.x, startCoords.y);
-		var body = world.CreateBody(projectileBd);
-		body.userData = {type: 'projectile', defPos: 0};
-
-		var forceX = forceCoeff * Math.cos(angle);
-		var forceY = forceCoeff * Math.sin(angle);
-
-		body.ApplyForce(new b2Vec2(forceX, forceY), new b2Vec2(startCoords.x, startCoords.y));
-
-		(function interval() {
-			setTimeout(function() {
-				if(step(true)) {
-					interval();
-				} else {
-					step(true);
-					(function secondInterval() {
-						setTimeout(function() {
-							if(step(false)) {
-								console.log(1);
-								secondInterval();
-							} else {
-								console.log(2);
-								step(false);
-							}
-						}, 20);
-					})();
-				}
-			}, 20);
-		})();
-	}
 
 //single physics step
 	function step(trigger) {
@@ -346,12 +253,15 @@ var mouseDownTime;
 		for(var i = world.m_bodyList; i; i=i.m_next) {
 			if(i.userData != undefined) {
 				if(trigger && i.userData.type == 'projectile') {
+
+					if(getPixels(i.m_position.x - viewport.x0) > 400 && viewport.zoom > 0.5 && getPixels(viewport.width - viewport.x0) >= 800) {
+						transitionView(viewport.x0 + 5, viewport.zoom, 5);
+					}
+
 					var velocity = i.GetLinearVelocity();
 					//execute if movement is finished and we want to reset from shooting state to normal state.
 					if(Math.abs(velocity.x) < 0.01 && Math.abs(velocity.y) < 0.01) {
-						console.log('projectile vel: ' + [velocity.x, velocity.y]);
 						if(structureIsStatic()) {
-							console.log('done');
 							//rebind the click handler and unbind mouseup
 							$('canvas').click(panner).unbind('mouseup');
 							 moving = false;
@@ -391,7 +301,7 @@ var mouseDownTime;
 			case 'projectile': 
 				fgContext2.save();
 				var translateCoords = getCanvasCoords(shape.m_position.x, shape.m_position.y);
-				//console.log([shape.m_position.x, shape.m_position.y]);
+				//var radius = getPixels(shape.m_radius);
 				fgContext2.translate(translateCoords.x, translateCoords.y);
 				fgContext2.rotate(angle + defPos);
 				var bird = getMedBird();
@@ -399,18 +309,17 @@ var mouseDownTime;
 				var height = getPixels(bird.sHeight / 2.0);
 				
 				
-				fgContext2.drawImage(bird.img, bird.sx, bird.sy, bird.sWidth, bird.sHeight, -width / 2.0, -height / 2.0, width, height);
+				fgContext2.drawImage(bird.img, bird.sx, bird.sy, bird.sWidth, bird.sHeight, -width / 2, -height / 2, width, height);
 				fgContext2.restore();
 				break;	
 			case 'longWood':
 				fgContext.save();
 				var translateCoords = getCanvasCoords(shape.m_position.x, shape.m_position.y);
-				//console.log('drawShape position: ' + [shape.m_position.x, shape.m_position.y]);
 				fgContext.translate(translateCoords.x, translateCoords.y);
 				fgContext.rotate(angle + defPos);
 				var longWood = getGameBlock(5, 5, 2.5, .25, 0, 1, 1, 4);
-				var width = getPixels(longWood.sWidth / 1.5);
-				var height = getPixels(longWood.sHeight / 1.5);
+				var width = getPixels(longWood.sWidth / 2.0);
+				var height = getPixels(longWood.sHeight / 2.0);
 				fgContext.drawImage(longWood.img, longWood.sx, longWood.sy, longWood.sWidth, longWood.sHeight, -width / 2.0, -height / 2.0, width, height);
 				fgContext.restore();
 				break;
@@ -418,12 +327,10 @@ var mouseDownTime;
 				fgContext.save();
 				var translateCoords = getCanvasCoords(shape.m_position.x, shape.m_position.y);
 				fgContext.translate(translateCoords.x, translateCoords.y);
-				//console.log('drawShape position: ' + [shape.m_position.x, shape.m_position.y]);
 				fgContext.rotate(angle + defPos);
-				//console.log([angle + defPos]);
 				var platform = getMiscPlatform1();
-				var vpWidth = platform.sWidth / 1.5;
-				var vpHeight = platform.sHeight / 1.5;
+				var vpWidth = platform.sWidth / 2.0;
+				var vpHeight = platform.sHeight / 2.0;
 				var canvWidth = getPixels(vpWidth);
 				var canvHeight = getPixels(vpHeight);
 				fgContext.drawImage(platform.img, platform.sx, platform.sy, platform.sWidth, platform.sHeight, -canvWidth / 2.0, -canvHeight / 2.0, canvWidth, canvHeight);
@@ -456,6 +363,9 @@ var mouseDownTime;
 			} else if(img.defaultX >= viewport.x0) {
 				var canvCoords = getCanvasCoords(img.defaultX, img.defaultY);
 				bgContext.drawImage(img, canvCoords.x, canvCoords.y, width, height);
+			} else if(getPixels(viewport.width - viewport.x0) < 800) {
+				var canvCoords = getCanvasCoords(img.defaultX + viewport.width, img.defaultY);
+				bgContext.drawImage(img, canvCoords.x, canvCoords.y, width, height);
 			}
 		}
 	}
@@ -480,13 +390,13 @@ var mouseDownTime;
 
 			
 			//specific positioning for each image
-			var y;	
+			var y = img.defaultY;	
 			switch(img.index){
 				case 1: 
-					y = viewport.height - viewport.groundY;
+					y = img.defaultY;
 					break;
 				case 2: 
-					y = viewport.height - viewport.groundY - img.vpHeight;
+					y = img.defaultY;
 					break;
 			}
 			//first tile
@@ -532,7 +442,6 @@ var mouseDownTime;
 			}
 			
 		}
-		console.log('band size: ' + (sec1 + sec2));
 		return sec1 + sec2;
 	}
 
@@ -573,6 +482,9 @@ var mouseDownTime;
 	function init() {
 		var bg1TileSrcs = {'BLUE_GRASS_FG_1.png': {height: 187, width: 332, defaultY: viewport.height - viewport.groundY, index: 1, vpHeight: 93.5, vpWidth: 166},
 									 'BLUE_GRASS_FG_2.png': {height: 33, width: 332, defaultY: viewport.height - viewport.groundY - 16.5, index: 2, vpHeight: 16.5, vpWidth: 166}, 
+									 'BLUE_GRASS_BG_1.png': {height: 318, width: 478, defaultY: viewport.height - viewport.groundY - 318, index: 3, vpHeight: 318, vpWidth: 478},
+									 'BLUE_GRASS_BG_2.png': {height: 204, width: 478, defaultY: viewport.height - viewport.groundY - 204, index: 4, vpHeight: 204, vpWidth: 478},
+									 'BLUE_GRASS_BG_3.png': {height: 63, width: 443, defaultY: viewport.height - viewport.groundY - 63, index: 5, vpHeight: 63, vpWidth: 443},
 		};
 		var bg1ImgSrcs = {'SLINGSHOT_01_BACK.png': {height: 199, width: 38, defaultY: viewport.height - viewport.groundY - 99.5, defaultX: 135, index: 1, vpHeight: 99.5, vpWidth: 19},
 									 		'SLINGSHOT_01_FRONT.png': {height: 124, width: 43, defaultY: viewport.height - viewport.groundY - 104, defaultX: 120, index: 2, vpHeight: 62, vpWidth: 21.5},
@@ -665,43 +577,12 @@ var mouseDownTime;
 				}
 			}
 		}
-
-		//create physics world
-		var worldAABB = new b2AABB();
-		worldAABB.minVertex.Set(-1000, -1000)
-		worldAABB.maxVertex.Set(2000, 2000);
-		var gravity = new b2Vec2(0, 300);
-		
-		world = new b2World(worldAABB, gravity, true);
-		/*
-		** Create ground in physics world
-		*/	
-		var groundSd = new b2BoxDef();
-		//distance to center.
-		groundSd.extents.Set(800, 100);	
-		//restitution is bounce, value between 0 and 1
-		groundSd.restitution = 0.0;
-		var groundBd = new b2BodyDef();
-		groundBd.AddShape(groundSd);
-		groundBd.position.Set(800, 500);
-		world.CreateBody(groundBd);
-
-		var leftSd = new b2BoxDef();
-		leftSd.extents.Set(10, 300);
-		leftSd.restitution = 0.0;
-		var leftBd = new b2BodyDef();
-		leftBd.AddShape(leftSd);
-		leftBd.position.Set(-10, 300);
-		world.CreateBody(leftBd);
-
-		var rightSd = new b2BoxDef();
-		rightSd.extents.Set(10, 300);
-		rightSd.restitution = 0.0;
-		var rightBd = new b2BodyDef();
-		rightBd.AddShape(rightSd);
-		rightBd.position.Set(1610, 300);
-		world.CreateBody(rightBd);
-
+		//Create Physics World
+		createWorld();
+	//set the initial player's turn	
+		turn = (now.turn == now.core.clientId);
+	//set default mouse listeners	
+		setDefaultListeners();
 
 	}
 
@@ -709,22 +590,17 @@ var mouseDownTime;
 		//create level 1
 		//draw platforms
 		var platform = getMiscPlatform1();
-		var platformWidth = platform.sWidth / 1.5;
-		var platformHeight = platform.sHeight / 1.5;
+		var platformWidth = platform.sWidth / 2.0;
+		var platformHeight = platform.sHeight / 2.0;
 		var platform1VpX = 1100;
-		var platform2VpX = 1225;
+		var platform2VpX = 1200;
 		var platformVpY = viewport.height - viewport.groundY - platformHeight;
-		var platform1Coords = getCanvasCoords(1100, viewport.height - viewport.groundY - platformHeight);
-		var platform2Coords = getCanvasCoords(1225, viewport.height - viewport.groundY - platformHeight);
-		console.log([platform.img, platform.sx, platform.sy, platform.sWidth, platform.sHeight, platform1Coords.x, platform1Coords.y, getPixels(platformWidth), getPixels(platformHeight)]);
-		//fgContext.drawImage(platform.img, platform.sx, platform.sy, platform.sWidth, platform.sHeight, platform1Coords.x, platform1Coords.y, getPixels(platformWidth), getPixels(platformHeight));
-		//fgContext.drawImage(platform.img, platform.sx, platform.sy, platform.sWidth, platform.sHeight, platform2Coords.x, platform2Coords.y, getPixels(platformWidth), getPixels(platformHeight));
+		var platform1Coords = getCanvasCoords(platform1VpX, viewport.height - viewport.groundY - platformHeight);
+		var platform2Coords = getCanvasCoords(platform2VpX, viewport.height - viewport.groundY - platformHeight);
 
 		//create physics bodies for platforms
 		createBox(platform1VpX, platformVpY, platformWidth, platformHeight, 'platform', 0);
 
-		console.log('createLevel pixels: ' + [platform1Coords.x, platform1Coords.y]);
-		console.log('createLevel vp: ' + [platform1VpX, platformVpY]);
 
 		createBox(platform2VpX, platformVpY, platformWidth, platformHeight, 'platform', 0);
 
@@ -733,13 +609,13 @@ var mouseDownTime;
 
 		//draw verticles
 		var longWood = getGameBlock(5, 5, 2.5, .25, 0, 1, 1, 4);
-		var longWoodWidth = longWood.sWidth / 1.5;
-		var longWoodHeight = longWood.sHeight / 1.5;
+		var longWoodWidth = longWood.sWidth / 2.0;
+		var longWoodHeight = longWood.sHeight / 2.0;
 
 		var constructionHeight = viewport.height - viewport.groundY - platformHeight - longWoodWidth;
 
-		var longWood1VpX = 65;
-		var longWood2VpX = 43;
+		var longWood1VpX = 48;
+		var longWood2VpX = 28;
 
 		//create physics bodies for long wood pieces
 		createBox(longWood1VpX + platform1VpX, constructionHeight, longWoodHeight, longWoodWidth, 'longWood', Math.PI / 2.0);
@@ -789,16 +665,15 @@ var mouseDownTime;
 		width -= 5;
 		return {img: fgImages['INGAME_BLOCKS_BASIC.png'], sx: sx, sy: sy, sWidth: width, sHeight: height};
 	}
-
+	
+	//returns true if the structure has a very low velocity.
 	function structureIsStatic() {
 		for(var i = world.m_bodyList; i; i=i.m_next) {
 			if(i.userData != undefined) {
 				switch(i.userData.type) {
 					case 'longWood': case 'platform':
 						var velocity = i.GetLinearVelocity();
-						console.log('block velocity: ' + [velocity.x, velocity.y]);
 						if(! (Math.abs(velocity.x) < 5 && Math.abs(velocity.y) < 5)) {
-							console.log('false');
 							return false;
 						}
 						break;
@@ -807,5 +682,176 @@ var mouseDownTime;
 		}
 		return true;
 	}
+//change the turns and do a cool animation on the viewport.
+	function transitionTurns() {
+		turn = !turn;
+		for(var i = world.m_bodyList; i; i = i.m_next) {
+			world.DestroyBody(i);	
+		}
+		$('canvas').unbind('click').unbind('mouseup').unbind('mousedown').unbind('mousewheel').unbind('mousemove');
+		modifyViewport(viewport.zoom, viewport.width);
+		viewport.x0 = 0;
+		redraw();
+		createWorld();
+		createLevel();
+		setDefaultListeners();
+	}
+
+
+		//create physics world
+	function createWorld() {
+		var worldAABB = new b2AABB();
+		worldAABB.minVertex.Set(-1000, -1000)
+		worldAABB.maxVertex.Set(2000, 2000);
+		var gravity = new b2Vec2(0, 300);
+		
+		world = new b2World(worldAABB, gravity, true);
+		/*
+		** Create ground in physics world
+		*/	
+		var groundSd = new b2BoxDef();
+		//distance to center.
+		groundSd.extents.Set(800, 100);	
+		//restitution is bounce, value between 0 and 1
+		groundSd.restitution = 0.0;
+		groundSd.friction = 1.0
+		var groundBd = new b2BodyDef();
+		groundBd.AddShape(groundSd);
+		groundBd.position.Set(800, 600);
+		world.CreateBody(groundBd);
+
+		var leftSd = new b2BoxDef();
+		leftSd.extents.Set(10, 300);
+		leftSd.restitution = 0.0;
+		leftSd.friction = 0.5;
+		var leftBd = new b2BodyDef();
+		leftBd.AddShape(leftSd);
+		leftBd.position.Set(-10, 300);
+		world.CreateBody(leftBd);
+
+		var rightSd = new b2BoxDef();
+		rightSd.extents.Set(10, 1000);
+		rightSd.restitution = 0.0;
+		rightSd.friction = 0.5
+		var rightBd = new b2BodyDef();
+		rightBd.AddShape(rightSd);
+		rightBd.position.Set(1610, 300);
+		world.CreateBody(rightBd);
+
+	}
+	//set the default event listeners
+	function setDefaultListeners() {
+		//toggle zoom and panning
+			$('canvas').click(function(e) {
+				panner(e)
+			})
+		//zoom in and out with mousewheel
+			.mousewheel(function() {
+				if(!moving) {
+					if(viewport.zoom > .75) {
+						//since we're going to the fully zoomed out pos, set viewport x to 0 so we're seeing the whole world.
+						modifyViewport(0.5, 0);
+					} else {
+						modifyViewport(1.0, viewport.x0);
+					}
+				}
+			})
+		if(turn) {
+			$('#messages').html("It's your turn!");
+				//rubber band animations
+			 $('canvas').mousedown(function(e) {
+				 if(moving) {
+					return;
+				 }
+				 mouseDownTime = e.timeStamp;
+					
+					var canvasCoords = $('canvas').offset();
+					var relX = e.pageX - canvasCoords.left;
+					var relY = e.pageY - canvasCoords.top;
+					var rad = getBandSize(relX, relY);
+					//If cursor is outside of the range of the rubber band, return
+					if(rad > bandSize) {
+						return;
+					}
+					//If we're not in a position to shoot, return.
+				 if(viewport.x0 != 0){
+					return;
+				 }
+				 moving = true;
+				 shooting = true;
+
+					prepareShot(relX, relY);
+					$(this).mousemove(function(e2) {
+						var relX2 = e2.pageX - canvasCoords.left;
+						var relY2 = e2.pageY - canvasCoords.top;
+						if(getBandSize(relX2, relY2) > bandSize) {
+							return;
+						}
+						prepareShot(e2.pageX - canvasCoords.left, e2.pageY - canvasCoords.top);
+					});
+					$(this).unbind('click');
+				});
+		} else {
+			$('#messages').html("It's not your turn--wait for the other player to go!");
+		}
+
+	}
+/*
+** nowJS client functions
+*/
+now.message = function(msg) {
+	var splashScreen = new Image();
+	splashScreen.src = '/images/Splash_AB_Logo.jpg';
+	splashScreen.onload = function() {
+		fgContext.drawImage(splashScreen, 0, 0, 800, 600);
+	};
+ 	$('#messages').html('').append(msg);
+};
+
+now.initGame = function() {
+	$('#ground').css('background-color', '#040A35');
+	$('#sky').css('background-color', '#99C8DA');
+	$('#messages').html('Partner Found!');
+	init();
+};
+
+	now.shoot = function(startCoords, dims, delta, angle) {
+		//Create projectile
+		var projectileSd = new b2BoxDef();
+		projectileSd.density = 1.5;
+		projectileSd.extents.Set(10.5, 9);
+		projectileSd.restitution = 0.0;
+		projectileSd.friction = 0.5;
+		var projectileBd = new b2BodyDef();
+		projectileBd.AddShape(projectileSd);
+		projectileBd.position.Set(startCoords.x, startCoords.y);
+		var body = world.CreateBody(projectileBd);
+		body.userData = {type: 'projectile', defPos: 0};
+
+		var forceX = forceCoeff * Math.cos(angle);
+		var forceY = forceCoeff * Math.sin(angle);
+
+		body.ApplyForce(new b2Vec2(forceX, forceY), new b2Vec2(startCoords.x, startCoords.y));
+
+		(function interval() {
+			setTimeout(function() {
+				if(step(true)) {
+					interval();
+				} else {
+					step(true);
+					(function secondInterval() {
+						setTimeout(function() {
+							if(step(false)) {
+								secondInterval();
+							} else {
+								step(true);
+								transitionTurns();
+							}
+						}, 20);
+					})();
+				}
+			}, 20);
+		})();
+	};
 
 });
