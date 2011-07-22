@@ -61,8 +61,9 @@ var config = {
 									 'SLINGSHOT_RUBBERBAND.png': {height: 16, width: 14, vpWidth: 7},
 									 'INGAME_BLOCKS_BASIC.png': {height: 739, width: 791},
 									 'INGAME_BLOCKS_MISC.png': {height: 494, width: 585},
+									 'FONT_MENU.png': {height: 182, width: 512},
+									 'FONT_BASIC.png': {height: 235, width: 512},
 		},
-
 
 		bg1ImgSrcs : {
 			'SLINGSHOT_01_BACK.png': {
@@ -73,13 +74,20 @@ var config = {
 				},
 		},
 
+		//positions of the digits in FONT_MENU.png
+		font: {
+				zero: {},
+				one: {},
+				two: {},
+				three: {},
+				four: {},
+				five: {},
+				six: {},
+				seven: {},
+				eight: {},
+				nine: {},	
+		},
+
 		skyColor: '#99C8DA',
 		groundColor: '#040A35',
-
-
-
-
-
-
-
 }

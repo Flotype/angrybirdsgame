@@ -5,8 +5,14 @@ $(document).ready(function() {
 	var fgContext2 = canvas.getContext('2d');
 	var canvas = document.getElementById('bg0');
 	var bgContext = canvas.getContext('2d');
+//	var canvas = document.getElementById('font');
+//	var fontContext = canvas.getContext('2d');
+
 //physics world
 	var world;
+
+//this player's score
+	var score = 0;
 
 //stores images for tiling
 	var bgTiles = {};
@@ -34,9 +40,9 @@ $(document).ready(function() {
 		var incr;
 		moving = true;
 		if(x > config.viewport.x0) {
-			incr = 4;
+			incr = 8;
 		} else if(x < config.viewport.x0){
-			incr = -4;
+			incr = -8;
 		} else {
 			zoom - config.viewport.zoom > 0 ? incr = -4 : incr = 4;
 		}
@@ -584,7 +590,7 @@ var mouseDownTime;
 		createBox(15 + platform1VpX + longWood1VpX, constructionHeight - longWoodHeight - longWoodWidth, longWoodHeight, longWoodWidth, 'longWood', Math.PI / 2.0);
 		createBox(longWood2VpX + platform2VpX - 15, constructionHeight - longWoodHeight - longWoodWidth, longWoodHeight, longWoodWidth, 'longWood', Math.PI / 2.0);
 	}
-
+	//create physics box
 	function createBox(vpX, vpY, width, height, bodyType, defaultPos) {
 		//physics position is set as center
 		var x = vpX + width / 2.0;
@@ -764,23 +770,23 @@ var mouseDownTime;
 /*
 ** nowJS client functions
 */
-now.message = function(msg) {
+/*now.message = function(msg) {
 	var splashScreen = new Image();
 	splashScreen.src = '/images/Splash_AB_Logo.jpg';
 	splashScreen.onload = function() {
 		fgContext.drawImage(splashScreen, 0, 0, 800, 600);
 	};
  	$('#messages').html('').append(msg);
-};
+};*/
 
-now.initGame = function() {
+/*now.initGame = function() {
 	$('#ground').css('background-color', config.groundColor);
 	$('#sky').css('background-color', config.skyColor);
 	$('#messages').html('Partner Found!');
 	init();
-};
+};*/
 
-	now.shoot = function(startCoords, dims, delta, angle) {
+/*	now.shoot = function(startCoords, dims, delta, angle) {
 		//Create projectile
 		var projectileSd = new b2BoxDef();
 		projectileSd.density = 1.5;
@@ -817,6 +823,8 @@ now.initGame = function() {
 				}
 			}, 20);
 		})();
-	};
+	};*/
+
+	now.x = 3;
 
 });
