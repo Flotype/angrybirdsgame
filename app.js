@@ -44,7 +44,7 @@ var groups = [];
 
 //on connect: look for a partner. If one is found, create a
 //2 player game. otherwise put this.user in the queue
-everyone.on('connect', function() {
+nowjs.on('connect', function() {
 	if(freeUsers.length != 0) {
 		var partnerId = freeUsers.shift();
 		var groupName = partnerId + '_' + this.user.clientId;
@@ -63,7 +63,6 @@ everyone.on('connect', function() {
 		
 	} else {
 		nowjs.getClient(this.user.clientId, function() {
-			console.log(JSON.stringify(this.now));
 			this.now.message('Waiting for partner...');
 		});
 		freeUsers.push(this.user.clientId);
@@ -111,13 +110,7 @@ everyone.on('disconnect', function() {
 });
 
 everyone.now.distributeShot = function(startCoords, dims, delta, angle, groupName) {
-	console.log(groupName);
 	var group = nowjs.getGroup(groupName);
-	group.hasClient(this.user.clientId, function(val) {
-		console.log(val);
-	});
-	console.log(9);
 	group.now.shoot(startCoords, dims, delta, angle);	
-	console.log(8);
 };
 
