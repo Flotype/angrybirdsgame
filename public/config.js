@@ -36,7 +36,7 @@ var config = {
 	//size of the slingshot rubber band (used in getBandSize())
 		bandSize: 170,
 	//force coefficient for physics
-		forceCoeff: 30000000,
+		forceCoeff: 20000000,
 		gravity: 300,
 	//image sources for background tiles
 		bg1TileSrcs: {
