@@ -45,27 +45,27 @@ var groups = [];
 //on connect: look for a partner. If one is found, create a
 //2 player game. otherwise put this.user in the queue
 everyone.on('connect', function() {
-	console.log('PLEASE GET HERE!');
 	if(freeUsers.length != 0) {
 		var partnerId = freeUsers.shift();
 		var groupName = partnerId + '_' + this.user.clientId;
-		//var newGroup = nowjs.getGroup(groupName);
+		var newGroup = nowjs.getGroup(groupName);
 
-		//newGroup.addUser(partnerId);
-		//newGroup.addUser(this.user.clientId);
+		newGroup.addUser(partnerId);
+		newGroup.addUser(this.user.clientId);
 
-		//newGroup.now.players = {player1: this.user.clientId, player2: partnerId};
-		//newGroup.now.turn = this.user.clientId;
-		//newGroup.now.groupName = groupName;
+		newGroup.now.players = {player1: this.user.clientId, player2: partnerId};
+		newGroup.now.turn = this.user.clientId;
+		newGroup.now.groupName = groupName;
 
-		//newGroup.now.initGame();
+		newGroup.now.initGame();
 
-		//groups.push(groupName);
+		groups.push(groupName);
 		
 	} else {
-		//nowjs.getClient(this.user.clientId, function() {
-			//this.now.message('Waiting for partner...');
-		//});
+		nowjs.getClient(this.user.clientId, function() {
+			console.log(JSON.stringify(this.now));
+			this.now.message('Waiting for partner...');
+		});
 		freeUsers.push(this.user.clientId);
 	}
 });
@@ -87,7 +87,10 @@ everyone.on('disconnect', function() {
 				if(val) {
 					freeUsers.push(ids[2]);
 				}
-			})
+			});
+			/*if(everyone.hasClient(ids[2])) {
+				freeUsers.push(ids[2]);
+			}*/
 			
 			return;
 		} else if(ids[2] == this.user.clientId) {
@@ -98,14 +101,23 @@ everyone.on('disconnect', function() {
 				if(val) {
 					freeUsers.push(ids[1]);
 				}
-			})
+			});
+			/*if(everyone.hasClient(ids[1])) {
+				freeUsers.push(ids[1]);
+			}*/
 			return;
 		}
 	}
 });
 
 everyone.now.distributeShot = function(startCoords, dims, delta, angle, groupName) {
+	console.log(groupName);
 	var group = nowjs.getGroup(groupName);
+	group.hasClient(this.user.clientId, function(val) {
+		console.log(val);
+	});
+	console.log(9);
 	group.now.shoot(startCoords, dims, delta, angle);	
+	console.log(8);
 };
 
